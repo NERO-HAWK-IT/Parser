@@ -60,7 +60,6 @@ def get_flats_data(links: list) -> list:
         response = requests.get(link, headers=HEADERS).text
         soup = BeautifulSoup(response, 'lxml').find('script', id='__NEXT_DATA__').text
         data = json.loads(soup)['props']['pageProps']['initialState']['objectsListing']['objects']
-
         for el in data:
             flat = {'flat_id': '',
                     'title': '',
@@ -112,21 +111,21 @@ def get_flats_data(links: list) -> list:
             try:
                 flat['coordinates'] = str(flat['coordinates'][0]) + ', ' + str(flat['coordinates'][1])
             except Exception:
-                pass
+                flat['coordinates'] = ''
             try:
                 flat['picture'] = str(flat['picture'][0])
             except Exception:
-                pass
+                flat['picture'] = ''
             try:
                 flat['phone_number'] = str(flat['phone_number'][0])
             except Exception:
-                pass
+                flat['phone_number'] = ''
             try:
                 for tb in dict_house_type:
                     if tb == flat['type_building']:
                         flat['type_building'] = dict_house_type[tb]
             except Exception:
-                pass
+                flat['type_building'] = ''
             flats.append(flat)
 
 
@@ -145,8 +144,7 @@ def get_flats_data(links: list) -> list:
     #                 flat['district'] = par.find('a').text
     #             if key == 'Микрорайон':
     #                 flat['microdistrict'] = par.find('a').text
-
-    pprint(flats)
+    # pprint(flats)
 
     return flats
 
