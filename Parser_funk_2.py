@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 from pprint import pprint
-import sqlite3
 import db_client
 
 # URL страницы раздела сайта с которого парсим данные
@@ -17,7 +16,7 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Ge
            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'}
 
 # Словарь запрашиваемых параметров квартир с типом значений
-Apartment_parameters = {'flat_id': 'INTEGER',
+Apartment_parameters = {'flat_id': 'INTEGER unique',
                         'title': 'TEXT',
                         'price': 'INTEGER',
                         'picture': 'TEXT',
@@ -36,6 +35,9 @@ Apartment_parameters = {'flat_id': 'INTEGER',
                         'coordinates': 'TEXT',
                         'phone_number': 'TEXT'}
 
+# Задаем уникальный параметр
+unique_parametr = 'flat_id'
+
 
 def get_html_page():
     """Поиск скрытых объявлений realt.by"""
@@ -52,8 +54,6 @@ def get_html_page():
     print(len(data))
 
 
-# get_html_page()
-
 def get_last_page() -> int:
     """Функция определения последней страницы"""
     response = requests.get(URL, headers=HEADERS).text
@@ -64,8 +64,8 @@ def get_last_page() -> int:
     return int(last_page)
 
 
-def get_all_links(last_page: int) -> list:
-    """Функция для сбора ссылок объявлений квартир"""
+def get_all_pages_links(last_page: int) -> list:
+    """Функция для сбора ссылок всех страниц"""
     links = []
     for page in tqdm(range(1, last_page + 1), desc='Parser_url: '):
         page_link = f'{URL_page}{page}'
@@ -73,64 +73,65 @@ def get_all_links(last_page: int) -> list:
     return links
 
 
-def get_flats_data(links: list, parametrs:dict) -> list:
-    """Функция сбора данных по объявлениям квартир"""
-    flats = []
-    for link in tqdm(links, desc='Parsing_data'):
-        response = requests.get(link, headers=HEADERS).text
-        soup = BeautifulSoup(response, 'lxml').find('script', id='__NEXT_DATA__').text
-        data = json.loads(soup)['props']['pageProps']['initialState']['objectsListing']['objects']
-        for el in data:
-            flat = parametrs.copy()
-            code_params = {'flat_id': 'code',
-                           'title': 'title',
-                           'price': 'price',
-                           'picture': 'images',
-                           'discription': 'description',
-                           'rooms': 'rooms',
-                           'square': 'areaTotal',
-                           'year': 'buildingYear',
-                           'floor': 'storey',
-                           'type_building': 'houseType',
-                           'region': 'stateRegionName',
-                           'locality': 'townName',
-                           'street': 'streetName',
-                           'house_number': 'houseNumber',
-                           'district': 'townDistrict',
-                           'microdistrict': 'microdistrict',
-                           'coordinates': 'location',
-                           'phone_number': 'contactPhones'}
-            dict_house_type = {0: 'Кирпичный', 1: 'Панельный', 2: 'Блок-комнаты', 3: 'Монолитный', 4: '',
-                               5: 'Силикатные блоки', 6: 'Бревенчатый', 7: '', 8: '', 9: 'Блочный', 10: 'Деревянный',
-                               11: 'Каркасно-блочный', 12: 'Каркасно-кирпичный', 13: 'Каркасный',
-                               14: 'Кирпично-блочный',
-                               15: 'Кирпично-деревянный', 16: 'Монолитно-блочный'}
+def get_all_ad_data_in_page(link: list):
+    """Функция cбора ссылок всех объявлений"""
+    response = requests.get(link, headers=HEADERS).text
+    soup = BeautifulSoup(response, 'lxml').find('script', id='__NEXT_DATA__').text
+    data = json.loads(soup)['props']['pageProps']['initialState']['objectsListing']['objects']
+    return data
 
-            for par in code_params:
-                try:
-                    flat[par] = el[code_params[par]]
-                except Exception as e:
-                    flat[par] = ''
-            try:
-                flat['coordinates'] = str(flat['coordinates'][0]) + ', ' + str(flat['coordinates'][1])
-            except Exception:
-                flat['coordinates'] = ''
-            try:
-                flat['picture'] = str(flat['picture'][0])
-            except Exception:
-                flat['picture'] = ''
-            try:
-                flat['phone_number'] = str(flat['phone_number'][0])
-            except Exception:
-                flat['phone_number'] = ''
-            try:
-                for tb in dict_house_type:
-                    if tb == flat['type_building']:
-                        flat['type_building'] = dict_house_type[tb]
-            except Exception:
-                flat['type_building'] = ''
-            flats.append(flat)
 
+def get_flat_data(ad_link: str, parametrs: dict) -> dict:
+    """Функция сбора данных по одному объявлению"""
+    flat = parametrs.copy()
+    code_params = {'flat_id': 'code',
+                   'title': 'title',
+                   'price': 'price',
+                   'picture': 'images',
+                   'discription': 'description',
+                   'rooms': 'rooms',
+                   'square': 'areaTotal',
+                   'year': 'buildingYear',
+                   'floor': 'storey',
+                   'type_building': 'houseType',
+                   'region': 'stateRegionName',
+                   'locality': 'townName',
+                   'street': 'streetName',
+                   'house_number': 'houseNumber',
+                   'district': 'townDistrict',
+                   'microdistrict': 'microdistrict',
+                   'coordinates': 'location',
+                   'phone_number': 'contactPhones'}
+    dict_house_type = {0: 'Кирпичный', 1: 'Панельный', 2: 'Блок-комнаты', 3: 'Монолитный', 4: '',
+                       5: 'Силикатные блоки', 6: 'Бревенчатый', 7: '', 8: '', 9: 'Блочный', 10: 'Деревянный',
+                       11: 'Каркасно-блочный', 12: 'Каркасно-кирпичный', 13: 'Каркасный',
+                       14: 'Кирпично-блочный',
+                       15: 'Кирпично-деревянный', 16: 'Монолитно-блочный'}
+
+    for par in code_params:
+        try:
+            flat[par] = ad_link[code_params[par]]
+        except Exception:
+            flat[par] = ''
+    try:
+        flat['coordinates'] = str(flat['coordinates'][0]) + ', ' + str(flat['coordinates'][1])
+    except Exception:
+        flat['coordinates'] = ''
+    try:
+        flat['picture'] = str(flat['picture'][0])
+    except Exception:
+        flat['picture'] = ''
+    try:
+        flat['phone_number'] = str(flat['phone_number'][0])
+    except Exception:
+        flat['phone_number'] = ''
+    try:
+        for tb in dict_house_type:
+            if tb == flat['type_building']:
+                flat['type_building'] = dict_house_type[tb]
+    except Exception:
+        flat['type_building'] = ''
+    return flat
     # for flat in tqdm(flats, desc='Parametr_2'): # поиск параметров Район и микрорайон
     #         resp = requests.get(f'https://realt.by/sale-flats/object/{flat["flat_id"]}/', headers=HEADERS)
     #         sou = BeautifulSoup(resp.text, 'lxml')
@@ -148,15 +149,16 @@ def get_flats_data(links: list, parametrs:dict) -> list:
     #                 flat['microdistrict'] = par.find('a').text
     # pprint(flats)
 
-    return flats
 
 def run_parser():
     last_page = get_last_page()
-    links = get_all_links(last_page)
-    data = get_flats_data(links, Apartment_parameters)
+    page_links = get_all_pages_links(last_page)
+    for link in tqdm(page_links, desc='Parsing_ad_links:'):
+        ad_data = get_all_ad_data_in_page(link)
+        db_client.create_table_db('realt_by_flats_3.db', 'flats_data', Apartment_parameters)
+        for ad in tqdm(ad_data, desc='Parsing and load data:'):
+            data = get_flat_data(ad, Apartment_parameters)
+            db_client.database_loading('realt_by_flats_3.db', 'flats_data', Apartment_parameters, unique_parametr, data)
 
-    db_client.create_table_db('realt_by_flats-t.db', 'flats_data', Apartment_parameters)
-    for el in tqdm(data, desc='Loading data in DB:'):
-        db_client.database_loading('realt_by_flats-t.db', 'flats_data', Apartment_parameters, el)
 
 run_parser()
