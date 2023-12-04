@@ -155,8 +155,8 @@ def run_parser():
     links = get_all_links(last_page)
     data = get_flats_data(links, Apartment_parameters)
 
-    db_client.create_table_db('realt_by_flats-3.db', 'flats_data', Apartment_parameters)
+    db_client.create_table_db('realt_by_flats-t.db', 'flats_data', Apartment_parameters)
     for el in tqdm(data, desc='Loading data in DB:'):
-        db_client.database_loading('realt_by_flats-3.db', 'flats_data', Apartment_parameters, el)
+        db_client.database_loading('realt_by_flats-t.db', 'flats_data', Apartment_parameters, el)
 
 run_parser()
